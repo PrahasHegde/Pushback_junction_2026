@@ -1,73 +1,105 @@
 # PUSHBACK
-**Your letter says one thing. The law might say another.**
+### Your letter says one thing. The law might say another.
 
-Paste (or photograph) the letter that feels wrong: a rent increase, a "no compensation" flight email, a surprise medical bill, a kept deposit, a fine, a benefits denial. Pushback checks every claim in it against the rules that apply **where you live, today**, shows the evidence for each verdict, and hands you a ready-to-send reply. You approve and send it yourself.
+**Pushback is an AI advocate for unfair letters.** Paste (or photograph) a rent increase, a "no compensation" flight email, a surprise medical bill, a kept deposit or a withheld paycheck. Pushback checks **every claim in it** against the rules that apply **where you live, today**, shows the source behind every verdict, and hands you a ready-to-send reply. You approve it before anything is sent.
 
-## Why it matters
-Landlords, airlines and billing departments send these letters by the thousands. They often count on people not checking: "compensation is not applicable", "rent rises 18%, or move out", "balance due $3,180". The rules that would let you push back exist, but they are spread across statutes, regulators' pages, this year's index numbers and forum threads. Few people spend the 3 hours it takes to check. Pushback does it in about 90 seconds.
+🎬 **Demo video (3 min):** [`demo/pushback-demo.mp4`](demo/pushback-demo.mp4)
 
-**Who it's for:** renters, travellers, patients and anyone dealing with a bureaucracy, especially people who can't afford a lawyer for a €400 problem.
+![Live investigation: claims highlighted in the letter, live Exa searches, verdicts stamped as evidence arrives](docs/screenshots/live-dark.png)
 
-## What makes it different
+---
+
+## The problem
+Landlords, airlines and billing departments send letters like these by the thousands, and they rely on people not checking. *"Compensation is not applicable." "Rent rises 14.6% in 30 days." "Balance due: $3,180."* The rules that let you push back exist, but they're spread across statutes, regulator pages, this year's caps and real cases. Checking takes hours, so most people just pay.
+
+**Who it's for:** renters, travellers, patients and workers, especially people who can't afford a lawyer for a €400 problem.
+
+## What it does
 | | |
 |---|---|
-| **Adversarial audit, not a chatbot** | Pushback reads the other party's document and gives every claim a verdict: *Valid / Questionable / Likely invalid / Unverified*. |
-| **Every verdict has evidence** | Each claim, amount, deadline and action carries `S#` citation chips. Hover to see the quoted passage; click to jump to the evidence locker. Any source ID the model invents is removed on the server, and uncited statements are flagged ⚠. |
-| **Live law, not training data** | Exa searches filter for recent changes (`startPublishedDate`), target official domains (`includeDomains`), use `deep` mode for hard facts and `/contents` for the full statute text. Official government sources get a green badge. |
-| **Honest by design** | A "Their best argument" section makes the agent research the other side's strongest case. |
-| **Task done, not just answered** | You get a reply letter in the document's own language that cites the law, a calendar file with deadline reminders, a checklist, and free local help (tenant unions, ombudsmen, legal aid) with real links. |
-| **Human approval** | Nothing is sent automatically. You edit the letter, then click **Approve & open in email**. |
-| **Photo in, case out** | Snap the letter and upload it (image or PDF). Gemini reads it directly (multimodal). |
+| ⚡ **Document X-ray in ~2 seconds** | Every claim the other party makes is highlighted in the original letter, along with key amounts and dates. |
+| 🔎 **Live investigation** | Exa searches today's laws, government pages, recent news and real cases. You watch every search and source arrive. |
+| 🟥 **Claim-by-claim verdicts** | Each claim is stamped *Likely invalid / Questionable / Valid / Unverified* as soon as it's verified, and illegal clauses are struck through in the letter. |
+| ⚖️ **The verdict** | Push back, negotiate or comply, plus money at stake, what you could recover, your next deadline, and the other side's best argument. |
+| ❝ **Proof for everything** | Every statement carries `S#` citations. Hover to see the exact quote; green marks official sources. Any citation the AI makes up is removed automatically. |
+| ✅ **Game plan** | A checklist, a deadline timeline with one-click calendar export, and free local help (tenant unions, ombudsmen, legal aid). |
+| ✉️ **Your reply, already written** | It quotes the exact law. One-click rewrites: firmer, friendlier, shorter, English, local language, or your own instruction. Nothing is sent until you approve. |
+| 💬 **Ask anything** | Follow-up chat that researches live again when it needs new facts, with sources. |
+| 📷 **Photo or PDF in** | Snap the paper letter and Gemini reads it directly. |
+| 🌗 **Light and dark theme** | A clean light default with a matching dark theme. Works at phone width. |
 
-## Built to respond while it works
-| When | What you see |
-|---|---|
-| **~2s** | **Document X-ray**: Gemini Flash-Lite pulls out every claim, amount and date, and highlights each claim in the original text. |
-| **~7s** | The agent's **reasoning streams live** into the investigation feed. |
-| **~20–35s** | **Verdict stamps arrive one by one** as each claim is verified (`mark_claim` tool). Illegal clauses are struck through in the document. |
-| **~50–75s** | The full case file: the verdict stamp, money at stake counting up, deadlines, game plan and reply letter. |
-| After | **Follow-up chat** that streams answers and runs new Exa searches when it needs to (new sources join the evidence locker). **One-click letter rewrites**: Firmer, Friendlier, Shorter, English, Local language, or your own instruction. **Voice input** 🎙️ and **Ctrl+Enter**. |
+| Verdict | Claim audit | Reply letter |
+|---|---|---|
+| ![](docs/screenshots/verdict-dark.png) | ![](docs/screenshots/claims-dark.png) | ![](docs/screenshots/letter-dark.png) |
 
 ## How it uses Exa
-- `POST /search` with `type: auto|fast|deep`, `includeDomains` (official sources), `startPublishedDate` (this year's caps and amounts), `category` (news for recent changes), and `contents.highlights` scoped to the query, so every source arrives with quotable evidence.
-- `POST /contents` with `livecrawl` to read the full current text of the key statute or guidance page.
-- Gemini runs several Exa searches in parallel each turn (typically 4–10 in total). The live investigation feed shows each query, its filters and the domains it hit.
+Exa does the digging that a model's training data can't: **current** laws, **this year's** caps and amounts, **official** procedures and **local** help.
+- **`/search` with `type: auto | fast | deep`.** Deep mode is used for hard-to-find facts.
+- **`includeDomains`** targets official sources (e.g. `oag.ca.gov`, `kkv.fi`, `gov.uk`).
+- **`startPublishedDate`** finds this year's rent caps, compensation amounts and recent rule changes.
+- **`category: news`** checks for recent changes.
+- **`contents.highlights` scoped to each query** means every source arrives with the exact passage that matters. That passage becomes the quote you see when you hover a citation.
+- **`/contents` with `livecrawl`** reads the full, current text of the key statute or official guidance page.
+- The agent runs several Exa searches **in parallel** each turn, typically 3–10 per case at about $0.02–0.03 of Exa credit. The cost is shown in the research log.
 
-## Run it
+## How it maps to the judging criteria
+| Criterion | Pushback |
+|---|---|
+| **Information beyond training data** | Every verdict rests on live Exa results: current caps, official pages and recent changes, filtered by date and domain. |
+| **Useful to real people** | Renters, travellers, patients and workers facing unfair letters. The output is a sendable letter, deadlines and free local help, not just an answer. |
+| **Clear sources** | `S#` citations everywhere, hover-to-quote, official badges, a full evidence locker and a live research log. Invented citations are stripped automatically. |
+| **Originality** | An adversarial *claim audit*: it reads the other side's document and stamps each claim live, with the law highlighted inside the letter itself. |
+| **Works on live queries** | Any letter, any country. Judges can paste their own. Off-topic requests get a polite "that's not what I do" in ~2s. |
+
+## Try it
+**Windows:** double-click **`run.bat`**. **macOS/Linux:** `./run.sh`. Both install dependencies, check your setup and open the browser.
+
+Or manually:
 ```bash
 pip install -r requirements.txt
-cp .env.example .env        # add GEMINI_API_KEY (Google AI Studio) and EXA_API_KEY
-python main.py              # http://localhost:8899
+copy .env.example .env      # add GEMINI_API_KEY (Google AI Studio) and EXA_API_KEY
+python check_setup.py --online   # verifies Python, packages, keys (live), port
+python main.py              # → http://localhost:8899
 ```
-Set `PORT` to change the port.
+- **Try a real case:** click one of the six sample letters on the home page, then *Investigate*. A case takes about 45–75 seconds.
+- **Offline backup:** http://localhost:8899/?replay replays saved real investigations without API calls. Useful if venue Wi-Fi fails.
+- **Demo from a phone on the same Wi-Fi:** `HOST=0.0.0.0 python main.py`.
 
-**Demo backup:** each finished investigation is saved to `runs/`. Open `http://localhost:8899/?replay` to replay saved runs with their original pacing (sped up) if the venue Wi-Fi fails.
-
-## Demo script (3 min, reactive version)
-1. Click the **14.6% rent increase** card (San Jose), then Investigate. At about 2s, point at the X-ray: "it has already found the 4 claims in the letter."
-2. While the stamps arrive: "watch them get struck through. That's live California law from Exa, not training data." Hover a citation to show the quote.
-3. Show the verdict and the money. Click **✂️ Shorter**, then **🌐 Local language**, and watch the letter rewrite itself.
-4. Ask the chat: *"Can they evict me for disputing this?"* It researches live and answers with sources.
-5. Hand the keyboard to a judge for their own case.
-
-## Original demo script
-1. **Hook (20s):** "Who here has gotten a letter that felt like a scam, but it was legal-sounding enough that you just paid?"
-2. **Live (90s):** click **✈️ Cancelled flight, €50 voucher**, then Investigate. Narrate the live feed: it's finding the EU 261/2004 rules and the Finnish consumer authority's page, and checking recent court rulings. Result: *"Compensation not applicable" → Likely invalid. You're owed €400, not a €50 voucher.* Hover a citation to show the quote. Open the letter, then click Approve.
-3. **Judges' turn (40s):** ask a judge for their own case, such as a real bill, a parking ticket or their city, and run it live.
-4. **Close (20s):** "Every verdict cited, every source live, and you stay in charge of what gets sent."
-
-## Architecture
+## How it works
 ```
-static/ (vanilla JS UI) ──NDJSON stream──▶ main.py (FastAPI)
-                                              │
-                                     agent.py: Gemini function-calling loop
-                                       ├─ exa_search      ─┐
-                                       ├─ exa_read_pages  ─┼─▶ exa_client.py → Exa REST API
-                                       └─ submit_case_file (strict JSON schema)
-                                              │
-                         citation validator (drops invented IDs, flags uncited claims)
+Browser (static/) ──streams events──▶ main.py (FastAPI)
+                                         │
+                                agent.py ├─ 1. Triage: Gemini Flash-Lite reads the letter (~2s)
+                                         │     → claims + exact quotes, amounts, dates; off-topic guard
+                                         ├─ 2. Investigator: Gemini Pro + tools
+                                         │     exa_search · exa_read_pages ──▶ exa_client.py ──▶ Exa API
+                                         │     mark_claim (live verdict stamps) · submit_case_file
+                                         ├─ 3. Safety: fill missing fields, strip invented citations
+                                         └─ 4. Follow-up chat (can search again) · letter rewrites
 ```
-- **Model:** `gemini-pro-latest` (override with `GEMINI_MODEL`), thought summaries stream into the live feed, parallel function calls, automatic retry + fallback to `gemini-flash-latest` on rate limits (`GEMINI_FALLBACK_MODEL`). Function arguments are normalised server-side before rendering.
-- Every Exa result goes into a per-case `SourceRegistry` and gets a stable ID (`S1…Sn`). That ID is the only way the model can cite a source.
+Every Exa result gets a stable ID (`S1…Sn`) in a per-case registry, and the model can only cite those IDs. Gemini thought summaries stream live into the research log. On a rate limit it retries automatically, then falls back to a faster model.
 
-*Pushback is not a lawyer and says so. For high-stakes cases it points you to free professional help.*
+## Robustness
+- **Before anything is sent:** input checks (too short, wrong file type, files over 15 MB), and an off-topic guard that stops before spending research credits.
+- **During a case:** a **Stop** button, a stall watchdog, a **Try again** card for every error, and friendly messages for rate limits and connection loss.
+- **On the server:** inputs are size-capped and saved-run lookups are protected against path tricks. All AI output is validated before display.
+- **Tests:** `python -m unittest discover -s tests -v` runs 14 offline tests (no keys needed) covering citations, the official-source check, case validation, the off-topic guard and every API endpoint.
+
+## Project structure
+```
+main.py            web server + streaming endpoints, saved runs, replay
+agent.py           prompts, tools, the investigation loop, chat, rewrites
+exa_client.py      Exa search/contents, numbered source registry
+static/            the app (HTML/CSS/JS, no build step) + sample cases
+check_setup.py     preflight check (add --online to test keys live)
+tests/             offline test suite
+runs/              saved real investigations for offline replay
+demo/              3-minute demo video
+docs/screenshots/  screenshots used in this README
+run.bat / run.sh   one-click start
+```
+
+## Limits
+Pushback is **not a lawyer**, and it says so in every case file, pointing to free professional help for high-stakes situations. Answers depend on what Exa can find. Anything it couldn't verify is labelled *Unverified*, never guessed. Sessions are kept in memory, so restarting the server clears follow-up chat history.
+
+*Sample letters use fictional companies; the laws they trigger are real.*

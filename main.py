@@ -131,4 +131,11 @@ async def rewrite(case_id: str = Body(""), letter: str = Body(...), instruction:
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=int(os.environ.get("PORT", 8899)), reload=False)
+    port = int(os.environ.get("PORT", 8899))
+    missing = [k for k in ("GEMINI_API_KEY", "EXA_API_KEY") if not os.environ.get(k) and not (k == "GEMINI_API_KEY" and os.environ.get("GOOGLE_API_KEY"))]
+    print(f"\n  PUSHBACK  ->  http://localhost:{port}   (offline demo replays: http://localhost:{port}/?replay)")
+    if missing:
+        print(f"  WARNING: {', '.join(missing)} not set. Copy .env.example to .env and add your keys; live investigations will fail until then.")
+    print()
+    # localhost only by default; set HOST=0.0.0.0 to demo from a phone on the same Wi-Fi
+    uvicorn.run("main:app", host=os.environ.get("HOST", "127.0.0.1"), port=port, reload=False)
