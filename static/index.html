@@ -7,6 +7,10 @@
 <meta name="description" content="Pushback checks the claims in a letter against the rules where you live, shows its sources, and drafts your reply.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>/* apply the saved theme before first paint (default: light) */
+(function () { var t = "light"; try { t = localStorage.getItem("pb-theme") || "light"; } catch (e) {}
+  document.documentElement.setAttribute("data-theme", t === "dark" ? "dark" : "light"); })();</script>
+<meta name="color-scheme" content="light dark">
 <link rel="stylesheet" href="/static/style.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='7' width='26' height='18' rx='3' fill='none' stroke='%23e0452a' stroke-width='3' transform='rotate(-8 16 16)'/%3E%3Ctext x='16' y='21' font-size='12' font-family='monospace' font-weight='700' text-anchor='middle' fill='%23e0452a' transform='rotate(-8 16 16)'%3EPB%3C/text%3E%3C/svg%3E">
 </head>
@@ -17,6 +21,7 @@
   <div class="topbar-right">
     <span class="powered">Research by <b>Exa</b> <i>·</i> Reasoning by <b>Gemini</b></span>
     <button id="newCase" class="btn btn-ghost btn-sm hidden">+ New case</button>
+    <button id="themeBtn" class="theme-toggle" type="button" aria-label="Switch to dark theme" title="Switch theme"><span class="t-light" aria-hidden="true">☀</span><span class="t-dark" aria-hidden="true">☾</span></button>
   </div>
 </header>
 
@@ -28,6 +33,8 @@
     <p class="lede">Paste it or upload a photo. Pushback checks every claim against the rules that apply where you live <b>today</b>, shows you the evidence, and drafts your reply.</p>
   </section>
 
+  <div id="notice" class="notice hidden" role="status"></div>
+
   <form id="form" class="composer">
     <div class="drop" id="drop">
       <textarea id="text" name="text" placeholder="Paste the letter, email, bill or notice here, or describe your situation in your own words…"></textarea>
@@ -38,6 +45,7 @@
         </label>
         <button type="button" class="tool mic" data-target="text" title="Dictate">🎙️ Speak</button>
         <span id="fileName" class="file-name"></span>
+        <button type="button" id="clearBtn" class="tool tool-clear hidden" title="Clear everything">✕ Clear</button>
         <span class="kbd-hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
       </div>
     </div>
@@ -49,10 +57,22 @@
       <button type="submit" id="go" class="btn btn-primary btn-lg">Investigate <span aria-hidden="true">→</span></button>
     </div>
   </form>
+  <div class="trust">
+    <span>🔒 Nothing is sent without your approval</span>
+    <span>❝ Every verdict linked to a live source</span>
+    <span>⚖️ Free help, not legal advice</span>
+  </div>
 
   <section class="samples">
-    <div class="section-label">Try a real case</div>
+    <div class="samples-head">
+      <div><div class="section-label">Try a real case</div><h2 class="samples-title">Six letters people actually get</h2></div>
+      <p class="samples-note">Fictional senders, real laws. Click one to load it, then press Investigate.</p>
+    </div>
     <div id="sampleList" class="sample-grid"></div>
+    <div id="replayWrap" class="hidden">
+      <div class="section-label" style="margin-top:28px">Saved runs (offline replay)</div>
+      <div id="replayList" class="sample-grid"></div>
+    </div>
   </section>
 
   <section class="how">
@@ -73,7 +93,7 @@
       <h1 id="cbTitle">Reading your document…</h1>
     </div>
     <div class="casebar-right">
-      <span id="cbStatus" class="status status-live"><i></i><span>Investigating</span></span>
+      <div class="status-row"><span id="cbStatus" class="status status-live"><i></i><span>Investigating</span></span><button id="stopBtn" class="btn btn-sm btn-ghost">■ Stop</button></div>
       <div class="stats">
         <div><b id="stSearches">0</b><span>searches</span></div>
         <div><b id="stSources">0</b><span>sources</span></div>
@@ -89,7 +109,7 @@
       <button data-tab="overview"><span class="ni">◎</span>Overview</button>
       <button data-tab="claims"><span class="ni">☰</span>Claims <span class="badge" id="nClaims"></span></button>
       <button data-tab="plan"><span class="ni">✓</span>Action plan</button>
-      <button data-tab="letter"><span class="ni">✉</span>Reply letter</button>
+      <button data-tab="letter"><span class="ni">✉</span><span id="navLetter">Reply letter</span></button>
       <button data-tab="ask"><span class="ni">✦</span>Ask Pushback</button>
       <button data-tab="evidence"><span class="ni">❝</span>Evidence <span class="badge" id="nSources"></span></button>
       <button data-tab="research"><span class="ni">⌕</span>Research log</button>
@@ -113,6 +133,7 @@
             <span class="pill p-likely_invalid">Likely invalid</span><span class="pill p-questionable">Questionable</span><span class="pill p-valid">Valid</span><span class="pill p-unverifiable">Unverified</span>
           </div>
         </header>
+        <div id="errSlot"></div>
         <div id="facts" class="facts"></div>
         <div class="xray-progress"><span id="xrayCount">0 / 0 checked</span><div class="bar"><div id="xrayBar"></div></div></div>
         <div id="claimsSkeleton" class="skeleton-block">
@@ -133,7 +154,7 @@
 
       <!-- Letter -->
       <section class="view" data-panel="letter">
-        <header class="view-head"><div><div class="eyebrow">Reply letter</div><h2>Ready to send, once you approve it</h2><p class="sub">Edit it freely, or ask the AI to rewrite it. Nothing is sent without you.</p></div></header>
+        <header class="view-head"><div><div class="eyebrow" id="letterEyebrow">Reply letter</div><h2 id="letterTitle">Ready to send, once you approve it</h2><p class="sub">Edit it freely, or ask the AI to rewrite it. Nothing is sent without you.</p></div></header>
         <div id="letterBody"></div>
       </section>
 

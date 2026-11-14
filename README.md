@@ -44,7 +44,7 @@ Set `PORT` to change the port.
 **Demo backup:** each finished investigation is saved to `runs/`. Open `http://localhost:8899/?replay` to replay saved runs with their original pacing (sped up) if the venue Wi-Fi fails.
 
 ## Demo script (3 min, reactive version)
-1. Click **🌴 California 14% rent increase**, then Investigate. At about 2s, point at the X-ray: "it has already found the 4 claims in the letter."
+1. Click the **14.6% rent increase** card (San Jose), then Investigate. At about 2s, point at the X-ray: "it has already found the 4 claims in the letter."
 2. While the stamps arrive: "watch them get struck through. That's live California law from Exa, not training data." Hover a citation to show the quote.
 3. Show the verdict and the money. Click **✂️ Shorter**, then **🌐 Local language**, and watch the letter rewrite itself.
 4. Ask the chat: *"Can they evict me for disputing this?"* It researches live and answers with sources.

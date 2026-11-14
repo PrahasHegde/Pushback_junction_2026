@@ -143,8 +143,8 @@ TOOLS: list[dict[str, Any]] = [
                 "money": {
                     "type": "object",
                     "properties": {
-                        "at_stake": {"type": "string", "description": "The FULL amount the other party is demanding or withholding, e.g. '$4,200 / year' for a $350/month increase, '£850' kept from a deposit. '' if none."},
-                        "potential_recovery": {"type": "string", "description": "What the user can realistically save or claim by pushing back, e.g. '€400 compensation + meal costs' or '$1,723 / year'."},
+                        "at_stake": {"type": "string", "description": "A short money figure, MAX 6 WORDS, no sentences. The FULL amount the other party is demanding or withholding, e.g. '$4,200 / year' for a $350/month increase, '£850' kept from a deposit. '' if none."},
+                        "potential_recovery": {"type": "string", "description": "A short money figure, MAX 6 WORDS, no sentences. What the user can realistically save or claim by pushing back, e.g. '€400 compensation + meal costs' or '$1,723 / year'."},
                         "explanation": {"type": "string"},
                         "source_ids": {"type": "array", "items": {"type": "string"}},
                     },
@@ -305,6 +305,13 @@ async def stream_turn(client: genai.Client, models: list[str], contents: list[ty
 TRIAGE_SCHEMA = {
     "type": "object",
     "properties": {
+        "in_scope": {
+            "type": "boolean",
+            "description": ("true if the input is (or describes) a letter, email, bill, notice, charge, fine, decision, contract term or "
+                            "dispute the user may want to check or contest: rent, deposits, eviction, travel disruption, insurance, "
+                            "benefits decisions, medical bills, fines, employment pay, debt collection, subscriptions, refunds, etc. "
+                            "false for unrelated requests (recommendations, planning, trivia, coding, small talk)."),
+        },
         "doc_text": {"type": "string", "description": "If a file/photo was attached: a faithful verbatim transcription of it. Otherwise ''."},
         "issue": {"type": "string", "description": "2–5 words, e.g. 'Rent increase notice'."},
         "jurisdiction": {"type": "string", "description": "Best guess, e.g. 'San Jose, California, USA'."},
@@ -321,7 +328,7 @@ TRIAGE_SCHEMA = {
             }, "required": ["quote", "claim"]},
         },
     },
-    "required": ["doc_text", "issue", "jurisdiction", "other_party", "gist", "amounts", "dates", "claims"],
+    "required": ["in_scope", "doc_text", "issue", "jurisdiction", "other_party", "gist", "amounts", "dates", "claims"],
 }
 
 
@@ -401,6 +408,15 @@ async def run_case(
 
     yield {"type": "status", "text": "Reading your document…"}
     tri = await triage(client, text, location, file_b64, media_type)
+
+    # Not a letter/bill/dispute (e.g. "find me a restaurant"): say so politely instead of forcing a verdict.
+    if tri and tri.get("in_scope") is False and not file_b64:
+        await exa.aclose()
+        yield {"type": "off_topic", "issue": tri.get("issue") or "",
+               "text": "Pushback checks letters, bills, notices and decisions you think might be unfair. "
+                       "This looks like a different kind of request. Paste the letter or describe the dispute and I'll investigate it."}
+        return
+
     doc = (tri.get("doc_text") or "").strip() or text
     if tri:
         yield {"type": "triage", "triage": {**tri, "doc_text": doc}}
@@ -487,7 +503,8 @@ async def run_case(
 
         yield {"type": "error", "text": "Research ran out of turns before a case file was produced. Try adding more detail."}
     except genai_errors.APIError as e:
-        yield {"type": "error", "text": f"Gemini API error ({e.code}): {e.message}"}
+        msg = "Gemini is busy right now (rate limit). Please try again in a minute." if e.code == 429 else f"Gemini API error ({e.code}): {e.message}"
+        yield {"type": "error", "text": msg}
     finally:
         await exa.aclose()
 
@@ -496,7 +513,7 @@ async def run_case(
 # Follow-up chat (can research more) and letter rewrites
 # ----------------------------------------------------------------------------------------------
 CHAT_PROMPT = """You are Pushback, continuing to help the user with the case below. Answer their follow-up question directly, warmly and concisely (usually 60–180 words). Use short paragraphs or a few bullets.
-Cite evidence inline as [S#] using the source ids listed. If you need facts you don't have (e.g. what happens at the tribunal, a form, a phone number, recent news), call exa_search first — never guess legal facts, amounts or deadlines.
+Cite evidence inline as [S#] using the source ids listed. If you need facts you don't have (e.g. what happens at the tribunal, a form, a phone number, recent news), call exa_search first — never guess legal facts, prices, opening hours, amounts or deadlines.
 Today's date: {today}. User location: {location}.
 
 CASE FILE (JSON):

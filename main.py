@@ -54,6 +54,7 @@ async def investigate(
         media_type = file.content_type
     if not text.strip() and not file_b64:
         return JSONResponse({"error": "Paste the letter or upload a photo/PDF of it."}, status_code=400)
+    text, location = text[:30000], location[:200]  # keep prompts bounded even for huge pastes
 
     async def stream():
         log: list[tuple[float, dict]] = []

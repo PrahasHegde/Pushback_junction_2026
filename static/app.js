@@ -15,47 +15,102 @@
   // ---------------------------------------------------------------- state
   let SOURCES = {}, CITED = new Set(), CLAIMS = {}, ORDER = [], DOC = "", CASE_ID = null, CASE = null;
   let timer = null, t0 = 0, searches = 0, liveThought = null, evFilter = "cited", phase = 0;
+  let ctl = null, lastRun = null, lastEventAt = 0, watchdog = null, finished = false;
+  const MAX_FILE_MB = 15, STALL_SECONDS = 150;
 
   const form = $("#form"), text = $("#text"), loc = $("#location"), fileIn = $("#file"), drop = $("#drop"), feed = $("#feed");
 
+  // ================================================================ THEME
+  const themeBtn = $("#themeBtn");
+  function applyTheme(t, animate) {
+    const root = document.documentElement;
+    if (animate) { root.classList.add("theme-anim"); setTimeout(() => root.classList.remove("theme-anim"), 400); }
+    root.setAttribute("data-theme", t);
+    themeBtn.setAttribute("aria-label", t === "dark" ? "Switch to light theme" : "Switch to dark theme");
+    try { localStorage.setItem("pb-theme", t); } catch (e) { /* private mode: theme just won't persist */ }
+  }
+  applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light", false);
+  themeBtn.onclick = () => applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark", true);
+
   // ================================================================ INTAKE
-  function sampleCard(label, sub, onclick, extraClass = "") {
-    const [emoji, ...rest] = label.split(" ");
+  function sampleCard(sm, onclick, extraClass = "") {
     const b = document.createElement("button");
     b.type = "button"; b.className = "sample " + extraClass;
-    b.innerHTML = `<span class="se">${esc(emoji)}</span><span class="st">${esc(rest.join(" "))}</span><span class="sl">${esc(sub)}</span>`;
+    b.innerHTML = `
+      <span class="sample-top"><span class="se">${esc(sm.emoji)}</span><span class="cat">${esc(sm.category)}</span></span>
+      <span class="st">${esc(sm.title)}</span>
+      <span class="sq">${esc(sm.question || "")}</span>
+      <span class="sample-foot"><span class="sl">📍 ${esc(sm.location)}</span><span class="go-hint">Load →</span></span>`;
     b.onclick = onclick; return b;
   }
-  (window.SAMPLES || []).forEach((s) => $("#sampleList").appendChild(sampleCard(s.label, s.location, () => {
-    text.value = s.text; loc.value = s.location; fileIn.value = ""; $("#fileName").textContent = "";
-    text.focus(); text.scrollTop = 0; form.scrollIntoView({ behavior: "smooth", block: "center" });
+  (window.SAMPLES || []).forEach((sm) => $("#sampleList").appendChild(sampleCard(sm, (e) => {
+    text.value = sm.text; loc.value = sm.location; fileIn.value = ""; $("#fileName").textContent = "";
+    $$(".sample.selected").forEach((x) => x.classList.remove("selected")); e.currentTarget.classList.add("selected");
+    hideNotice(); syncClear(); text.scrollTop = 0; form.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => $("#go").focus({ preventScroll: true }), 350);
   })));
 
   if (new URLSearchParams(location.search).has("replay")) {   // offline demo backup
-    fetch("/api/runs").then((r) => r.json()).then((runs) => runs.forEach((r) =>
-      $("#sampleList").prepend(sampleCard("▶ " + r.title, "Saved run · replay", () => runCase(`/api/replay/${encodeURIComponent(r.id)}`, null), "replay"))));
+    fetch("/api/runs").then((r) => r.json()).then((runs) => {
+      if (!runs.length) return;
+      $("#replayWrap").classList.remove("hidden");
+      runs.forEach((r) => $("#replayList").appendChild(sampleCard(
+        { emoji: "▶", category: "Saved run", title: r.title, location: "Replays offline, no API calls", question: "" },
+        () => runCase(`/api/replay/${encodeURIComponent(r.id)}`, null), "replay")));
+    }).catch(() => {});
   }
 
-  fileIn.onchange = () => { $("#fileName").textContent = fileIn.files[0]?.name || ""; };
+  // Notice banner on the intake page (off-topic input, file problems…)
+  function showNotice(title, msg) {
+    const n = $("#notice"); n.innerHTML = `<b>${esc(title)}</b><span>${esc(msg)}</span><button type="button" aria-label="Dismiss">✕</button>`;
+    n.classList.remove("hidden"); n.querySelector("button").onclick = hideNotice;
+  }
+  function hideNotice() { $("#notice").classList.add("hidden"); }
+
+  // Clear button: visible only when there is something to clear
+  const clearBtn = $("#clearBtn");
+  const syncClear = () => clearBtn.classList.toggle("hidden", !(text.value.trim() || loc.value.trim() || fileIn.files.length));
+  clearBtn.onclick = () => {
+    text.value = ""; loc.value = ""; fileIn.value = ""; $("#fileName").textContent = "";
+    $$(".sample.selected").forEach((x) => x.classList.remove("selected")); hideNotice();
+    syncClear(); text.focus(); toast("Cleared");
+  };
+  text.addEventListener("input", syncClear); loc.addEventListener("input", syncClear);
+  function validFile(f) {
+    if (!f) return true;
+    if (!/^image\/|^application\/pdf$/.test(f.type)) { showNotice("Unsupported file", "Please attach a photo (JPG, PNG, WEBP) or a PDF of the letter."); return false; }
+    if (f.size > MAX_FILE_MB * 1024 * 1024) { showNotice("File too large", `Please keep it under ${MAX_FILE_MB} MB. A phone photo of the letter is plenty.`); return false; }
+    return true;
+  }
+  fileIn.onchange = () => {
+    if (!validFile(fileIn.files[0])) fileIn.value = "";
+    $("#fileName").textContent = fileIn.files[0] ? "📄 " + fileIn.files[0].name : ""; syncClear();
+  };
   ["dragenter", "dragover"].forEach((e) => drop.addEventListener(e, (ev) => { ev.preventDefault(); drop.classList.add("over"); }));
   ["dragleave", "drop"].forEach((e) => drop.addEventListener(e, (ev) => { ev.preventDefault(); drop.classList.remove("over"); }));
   drop.addEventListener("drop", (ev) => {
     const f = ev.dataTransfer.files?.[0]; if (!f) return;
-    const dt = new DataTransfer(); dt.items.add(f); fileIn.files = dt.files; $("#fileName").textContent = f.name;
+    if (!validFile(f)) return;
+    const dt = new DataTransfer(); dt.items.add(f); fileIn.files = dt.files; $("#fileName").textContent = "📄 " + f.name; syncClear();
   });
   text.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) form.requestSubmit(); });
   form.addEventListener("submit", (ev) => {
     ev.preventDefault();
     if (!text.value.trim() && !fileIn.files.length) { text.focus(); toast("Paste a letter or attach a file first"); return; }
+    if (!fileIn.files.length && text.value.trim().length < 25) { text.focus(); showNotice("A little more detail, please", "Paste the full letter, or describe what happened: who sent it, what they want, amounts and dates."); return; }
+    hideNotice();
     runCase("/api/investigate", new FormData(form));
   });
   $("#newCase").onclick = () => {
+    if (ctl && !finished) ctl.abort("user");
     $("#work").classList.add("hidden"); $("#intake").classList.remove("hidden"); $("#newCase").classList.add("hidden"); window.scrollTo(0, 0);
   };
 
   // ================================================================ STREAMING
   async function streamNDJSON(url, opts, onEvent) {
-    const resp = await fetch(url, opts);
+    let resp;
+    try { resp = await fetch(url, opts); }
+    catch (e) { if (e.name === "AbortError") throw e; throw new Error("Can't reach the Pushback server. Is it still running?"); }
     if (!resp.ok) { const j = await resp.json().catch(() => ({})); throw new Error(j.error || `Server error ${resp.status}`); }
     const reader = resp.body.getReader(), dec = new TextDecoder(); let buf = "";
     for (;;) {
@@ -66,10 +121,32 @@
   }
 
   async function runCase(url, fd) {
+    lastRun = { url, fd };
     resetWorkspace();
-    try { await streamNDJSON(url, { method: "POST", body: fd }, handle); }
-    catch (e) { fail(String(e.message || e)); }
-    finally { clearInterval(timer); closeThought(); }
+    const myCtl = ctl = new AbortController(); finished = false; lastEventAt = Date.now();
+    clearInterval(watchdog);
+    watchdog = setInterval(() => {   // guard against a silent, stuck stream
+      if (!finished && Date.now() - lastEventAt > STALL_SECONDS * 1000) myCtl.abort("stall");
+    }, 5000);
+    try {
+      await streamNDJSON(url, { method: "POST", body: fd, signal: myCtl.signal }, (ev) => { if (ctl === myCtl) { lastEventAt = Date.now(); handle(ev); } });
+      if (!finished && ctl === myCtl) fail("The investigation ended unexpectedly. Please try again.");
+    } catch (e) {
+      if (ctl !== myCtl) return;                       // superseded by a newer run
+      if (e.name === "AbortError" || myCtl.signal.aborted) {
+        if (myCtl.signal.reason === "stall") fail(`No response for ${Math.round(STALL_SECONDS / 60)} minutes. The AI service may be overloaded.`);
+        else if (!$("#work").classList.contains("hidden")) stopped();
+      } else fail(String(e.message || e));
+    } finally {
+      if (ctl === myCtl) { clearInterval(timer); clearInterval(watchdog); closeThought(); $("#stopBtn").classList.add("hidden"); }
+    }
+  }
+  $("#stopBtn").onclick = () => { if (ctl && !finished) ctl.abort("user"); };
+
+  function stopped() {
+    finished = true; setStatus("err", "Stopped");
+    addItem("err", `<div class="purpose">Stopped by you</div>`);
+    showError("Investigation stopped", "Nothing was sent anywhere. Run it again whenever you're ready.");
   }
 
   // ================================================================ WORKSPACE
@@ -82,6 +159,7 @@
     $("#claimsSkeleton").classList.remove("hidden"); $("#xrayGrid").classList.add("hidden");
     $("#cbIssue").textContent = "New case"; $("#cbWhere").textContent = ""; $("#cbTitle").textContent = "Reading your document…";
     setStatus("live", "Investigating"); setProgress(4);
+    $("#stopBtn").classList.remove("hidden"); $("#errSlot").innerHTML = "";
     $("#layout").classList.add("live");
     $$(".sidenav button").forEach((b) => (b.disabled = true));
     $$("#evFilter button").forEach((b) => b.classList.toggle("on", b.dataset.f === "cited"));
@@ -162,22 +240,34 @@
         break;
       }
       case "claim_update": stampClaim(ev); break;
+      case "off_topic": {
+        finished = true;
+        $("#work").classList.add("hidden"); $("#intake").classList.remove("hidden"); $("#newCase").classList.add("hidden");
+        showNotice("That's outside what Pushback does", ev.text);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        break;
+      }
       case "result":
         closeThought();
         (ev.sources || []).forEach((s) => (SOURCES[s.id] = s)); updateStats();
         addItem("final", `<div class="purpose">Case file ready</div><div class="q">${ev.stats?.exa_calls ?? "?"} Exa calls · ${ev.stats?.sources ?? "?"} sources${ev.stats?.exa_cost ? ` · $${ev.stats.exa_cost.toFixed(3)}` : ""} · ${secs()}s</div>`);
-        CASE_ID = ev.case_id || null;
-        renderCase(ev.case);
+        CASE_ID = ev.case_id || null; finished = true;
+        try { renderCase(ev.case); } catch (err) { console.error(err); fail("The case file arrived but couldn't be displayed. Please try again."); }
         break;
-      case "error": addItem("err", `<div class="purpose">${esc(ev.text)}</div>`); fail(ev.text); break;
+      case "error": finished = true; addItem("err", `<div class="purpose">${esc(ev.text)}</div>`); fail(ev.text); break;
     }
   }
 
   function fail(msg) {
-    setStatus("err", "Failed"); clearInterval(timer);
-    $("#claimsSkeleton").classList.add("hidden"); $("#xrayGrid").classList.remove("hidden");
-    $("#ccards").innerHTML = `<div class="err-box"><b>Something went wrong.</b><br>${esc(msg)}</div>`;
-    $("#xrayGrid").classList.add("nodoc");
+    finished = true; setStatus("err", "Failed"); clearInterval(timer);
+    showError("Something went wrong", msg);
+  }
+  function showError(title, msg) {
+    if (!ORDER.length) $("#claimsSkeleton").classList.add("hidden");
+    $("#errSlot").innerHTML = `<div class="err-card"><div><b>${esc(title)}</b><p>${esc(msg)}</p></div>
+      <div class="err-actions">${lastRun ? `<button class="btn btn-primary btn-sm" id="retryBtn">↻ Try again</button>` : ""}<button class="btn btn-sm" id="editBtn">Edit input</button></div></div>`;
+    $("#retryBtn")?.addEventListener("click", () => runCase(lastRun.url, lastRun.fd));
+    $("#editBtn").onclick = () => $("#newCase").click();
   }
 
   // ================================================================ TRIAGE + X-RAY
@@ -342,7 +432,8 @@
         <div class="disclaimer">${esc(c.caveats)} Pushback is not a lawyer. For high-stakes situations, use the free help listed in your action plan.</div>
       </div>`;
     typewrite($("#bl"), c.bottom_line);
-    $$("#ovBody .count-up").forEach(countUp);
+    $$("#ovBody .kpi .v").forEach((v) => v.classList.toggle("long", v.textContent.trim().length > 30));  // prose → compact text
+    $$("#ovBody .count-up:not(.long)").forEach(countUp);
   }
   document.addEventListener("click", (e) => { const g = e.target.closest("[data-go]"); if (g) setTab(g.dataset.go); });
 
@@ -567,7 +658,7 @@
       if (btn.rec) { btn.rec.stop(); return; }
       const rec = new SR(); rec.interimResults = true; rec.continuous = true; rec.lang = navigator.language || "en-US";
       const base = target.value ? target.value.replace(/\s*$/, " ") : "";
-      rec.onresult = (e) => { target.value = base + [...e.results].map((r) => r[0].transcript).join(""); };
+      rec.onresult = (e) => { target.value = base + [...e.results].map((r) => r[0].transcript).join(""); target.dispatchEvent(new Event("input")); };
       rec.onend = () => { btn.classList.remove("rec"); btn.rec = null; };
       btn.rec = rec; btn.classList.add("rec"); rec.start();
     };

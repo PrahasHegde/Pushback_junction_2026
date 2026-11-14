@@ -83,6 +83,7 @@ Everything below happens inside [`run_case()` in agent.py](agent.py#L390). Read 
 
 1. **Triage (~2s).** [`triage()`](agent.py#L328) sends the document (text, image or PDF) to **Gemini Flash-Lite** with a strict JSON schema ([`TRIAGE_SCHEMA`](agent.py#L305)). It returns the issue type, jurisdiction, other party, amounts, dates, and the claims, each with an **exact quote** from the document. Claims get IDs `C1, C2, …`.
    → event `triage`. The browser draws the **Document X-ray** (highlights the quotes, shows "checking…" cards).
+   Triage also returns `in_scope`. If the input isn't a letter, bill, notice or dispute (e.g. "find me a restaurant"), the server sends **`off_topic`** and stops before spending any Exa or Pro-model credits. The browser returns to the intake page with a friendly notice.
 
 2. **Investigation loop (up to `MAX_TURNS = 14`).** The main model (Gemini Pro) gets the [`SYSTEM_PROMPT`](agent.py#L26), the document and the pre-extracted claims. On each turn:
    - The reply **streams** via [`stream_turn()`](agent.py#L275). Thought summaries → `thought_delta` events (the "reasoning" text that types itself out in the Research log).
@@ -118,7 +119,8 @@ Everything below happens inside [`run_case()` in agent.py](agent.py#L390). Read 
 | `found` | `id, sources[], error` | Source chips, stats counters |
 | `claim_update` | `claim_id, verdict, headline, source_ids` | Stamps a claim card + recolors its highlight |
 | `result` | `case_id, case, sources[], stats` | Builds every tab and switches to Overview |
-| `error` | `text` | Error box, status → Failed |
+| `off_topic` | `text, issue` | Back to intake with a notice banner (no research is run) |
+| `error` | `text` | Error card with **Try again**, status → Failed |
 | `token` / `done` | *(chat & rewrite only)* | Streaming text |
 
 ---
@@ -169,13 +171,13 @@ Sections are empty shells in HTML. JS fills them when the result arrives (`rende
 | [`cites`](static/app.js#L261) | Renders `S#` citation chips. Clicking one jumps to Evidence and flashes the card |
 
 ### Styling
-[style.css](static/style.css) is organised by section headers (`Intake`, `Workspace`, `Overview`, `Claims / X-ray`, `Plan`, `Letter`, `Ask`, `Evidence`, `Research log`). All colors are CSS variables in `:root`, with a dark-mode override under `prefers-color-scheme: dark`. **Change colors only there.** The breakpoints are 1000px (sidebar becomes horizontal tabs) and 640px (phone).
+[style.css](static/style.css) is organised by section headers (`Intake`, `Workspace`, `Overview`, `Claims / X-ray`, `Plan`, `Letter`, `Ask`, `Evidence`, `Research log`). All colors are CSS variables. The light theme is in `:root`; the dark theme is in `:root[data-theme="dark"]` (copied into a `prefers-color-scheme` block used only when no theme is set). **Change colors only there, and keep both dark blocks identical.** The ☀/☾ switch in the top bar sets `data-theme` on `<html>` and saves the choice in `localStorage` (`pb-theme`). A tiny script in `<head>` applies it before the page paints, so there's no flash. The default is light. The breakpoints are 1000px (sidebar becomes horizontal tabs) and 640px (phone).
 
 ---
 
 ## 8. How do I…
 
-**…add a demo case?** Add an object to [static/samples.js](static/samples.js) with `label` (start with an emoji, a space, then the title), `location` and `text`. Use fictional company names.
+**…add a demo case?** Add an object to [static/samples.js](static/samples.js) with `emoji`, `category` (short tag like "Housing"), `title`, `location`, `question` (the one-line hook on the card) and `text` (the letter). Use fictional company names. The grid has 3 columns, so keep the total a multiple of 3.
 
 **…change which model is used?** Set `GEMINI_MODEL` (or the others) in `.env` and restart. No code change needed.
 
@@ -220,6 +222,19 @@ Sections are empty shells in HTML. JS fills them when the result arrives (`rende
   | Claim not highlighted in the X-ray | The model's quote didn't match the text exactly. The card still shows; `locate()` is the place to make matching fuzzier |
 
 ---
+
+### Built-in safety nets (front end)
+| Situation | What happens |
+|---|---|
+| Input shorter than 25 characters | Notice asking for more detail; nothing is sent |
+| Wrong file type or file over 15 MB | Notice on the intake page; the file is rejected before upload |
+| User clicks **■ Stop** (case bar) | The stream is aborted, status → Stopped, card with **Try again** |
+| No event from the server for 150 s | Watchdog aborts and shows "No response… try again" |
+| Server unreachable / connection drops | "Can't reach the Pushback server" + **Try again** |
+| Case file arrives but fails to render | Caught; error card instead of a blank page |
+| User starts a **New case** mid-run | The old stream is aborted, and its late events are ignored |
+
+These live in `runCase()`, `fail()`, `showError()` and `validFile()` in app.js. On the server, pasted text is capped at 30,000 characters and files at 15 MB.
 
 ## 10. Known limits
 
