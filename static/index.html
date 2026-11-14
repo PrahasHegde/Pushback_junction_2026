@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pushback</title>
+<meta name="description" content="Pushback checks the claims in a letter against the rules where you live, shows its sources, and drafts your reply.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='7' width='26' height='18' rx='3' fill='none' stroke='%23e0452a' stroke-width='3' transform='rotate(-8 16 16)'/%3E%3Ctext x='16' y='21' font-size='12' font-family='monospace' font-weight='700' text-anchor='middle' fill='%23e0452a' transform='rotate(-8 16 16)'%3EPB%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="/" aria-label="Pushback home"><span class="stamp">PUSHBACK</span></a>
+  <div class="topbar-right">
+    <span class="powered">Research by <b>Exa</b> <i>·</i> Reasoning by <b>Gemini</b></span>
+    <button id="newCase" class="btn btn-ghost btn-sm hidden">+ New case</button>
+  </div>
+</header>
+
+<!-- ============================== INTAKE ============================== -->
+<main id="intake" class="intake">
+  <section class="intro">
+    <div class="eyebrow">Your AI consumer-rights advocate</div>
+    <h1>Got a letter that feels <em>wrong</em>?</h1>
+    <p class="lede">Paste it or upload a photo. Pushback checks every claim against the rules that apply where you live <b>today</b>, shows you the evidence, and drafts your reply.</p>
+  </section>
+
+  <form id="form" class="composer">
+    <div class="drop" id="drop">
+      <textarea id="text" name="text" placeholder="Paste the letter, email, bill or notice here, or describe your situation in your own words…"></textarea>
+      <div class="composer-tools">
+        <label class="tool">
+          <input type="file" id="file" name="file" accept="image/*,application/pdf" hidden>
+          <span>📎 Attach photo or PDF</span>
+        </label>
+        <button type="button" class="tool mic" data-target="text" title="Dictate">🎙️ Speak</button>
+        <span id="fileName" class="file-name"></span>
+        <span class="kbd-hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
+      </div>
+    </div>
+    <div class="composer-row">
+      <div class="loc-field">
+        <span class="loc-icon">📍</span>
+        <input id="location" name="location" placeholder="Where do you live? e.g. Helsinki, Finland" autocomplete="off">
+      </div>
+      <button type="submit" id="go" class="btn btn-primary btn-lg">Investigate <span aria-hidden="true">→</span></button>
+    </div>
+  </form>
+
+  <section class="samples">
+    <div class="section-label">Try a real case</div>
+    <div id="sampleList" class="sample-grid"></div>
+  </section>
+
+  <section class="how">
+    <div class="how-step"><span class="how-n">01</span><h3>Read</h3><p>Gemini extracts every claim, amount and date from your document in about 2 seconds.</p></div>
+    <div class="how-step"><span class="how-n">02</span><h3>Verify</h3><p>Exa searches today's laws, official guidance and real cases. Every verdict links to its source.</p></div>
+    <div class="how-step"><span class="how-n">03</span><h3>Act</h3><p>You get a ready-to-send reply, deadlines for your calendar, and free help near you. You approve before anything is sent.</p></div>
+  </section>
+</main>
+
+<!-- ============================== WORKSPACE ============================== -->
+<main id="work" class="work hidden">
+  <section class="casebar">
+    <div class="casebar-left">
+      <div class="casebar-meta">
+        <span id="cbIssue" class="tag-dark">New case</span>
+        <span id="cbWhere" class="muted"></span>
+      </div>
+      <h1 id="cbTitle">Reading your document…</h1>
+    </div>
+    <div class="casebar-right">
+      <span id="cbStatus" class="status status-live"><i></i><span>Investigating</span></span>
+      <div class="stats">
+        <div><b id="stSearches">0</b><span>searches</span></div>
+        <div><b id="stSources">0</b><span>sources</span></div>
+        <div><b id="stOfficial">0</b><span>official</span></div>
+        <div><b id="stTime">0s</b><span>elapsed</span></div>
+      </div>
+    </div>
+    <div class="casebar-progress"><div id="mainBar"></div></div>
+  </section>
+
+  <div id="layout" class="layout live">
+    <nav id="sidenav" class="sidenav" aria-label="Case sections">
+      <button data-tab="overview"><span class="ni">◎</span>Overview</button>
+      <button data-tab="claims"><span class="ni">☰</span>Claims <span class="badge" id="nClaims"></span></button>
+      <button data-tab="plan"><span class="ni">✓</span>Action plan</button>
+      <button data-tab="letter"><span class="ni">✉</span>Reply letter</button>
+      <button data-tab="ask"><span class="ni">✦</span>Ask Pushback</button>
+      <button data-tab="evidence"><span class="ni">❝</span>Evidence <span class="badge" id="nSources"></span></button>
+      <button data-tab="research"><span class="ni">⌕</span>Research log</button>
+    </nav>
+
+    <div class="content" id="content">
+      <!-- Overview -->
+      <section class="view" data-panel="overview">
+        <div id="ovBody"></div>
+      </section>
+
+      <!-- Claims / X-ray -->
+      <section class="view" data-panel="claims">
+        <header class="view-head">
+          <div>
+            <div class="eyebrow">Claim audit</div>
+            <h2>What the letter says, checked</h2>
+            <p class="sub">Every claim from the other party is highlighted in your document and checked against live sources.</p>
+          </div>
+          <div class="legend">
+            <span class="pill p-likely_invalid">Likely invalid</span><span class="pill p-questionable">Questionable</span><span class="pill p-valid">Valid</span><span class="pill p-unverifiable">Unverified</span>
+          </div>
+        </header>
+        <div id="facts" class="facts"></div>
+        <div class="xray-progress"><span id="xrayCount">0 / 0 checked</span><div class="bar"><div id="xrayBar"></div></div></div>
+        <div id="claimsSkeleton" class="skeleton-block">
+          <div class="sk-doc"><div></div><div></div><div></div><div></div><div></div><div></div></div>
+          <div class="sk-cards"><div></div><div></div><div></div></div>
+        </div>
+        <div class="xray-grid hidden" id="xrayGrid">
+          <div class="doc-wrap"><div class="doc-label">Your document</div><div class="doc" id="doc"></div></div>
+          <div class="ccards" id="ccards"></div>
+        </div>
+      </section>
+
+      <!-- Plan -->
+      <section class="view" data-panel="plan">
+        <header class="view-head"><div><div class="eyebrow">Action plan</div><h2>What to do, and by when</h2><p class="sub">Tick steps off as you go. Add every deadline to your calendar in one click.</p></div></header>
+        <div id="planBody"></div>
+      </section>
+
+      <!-- Letter -->
+      <section class="view" data-panel="letter">
+        <header class="view-head"><div><div class="eyebrow">Reply letter</div><h2>Ready to send, once you approve it</h2><p class="sub">Edit it freely, or ask the AI to rewrite it. Nothing is sent without you.</p></div></header>
+        <div id="letterBody"></div>
+      </section>
+
+      <!-- Ask -->
+      <section class="view" data-panel="ask">
+        <header class="view-head"><div><div class="eyebrow">Ask Pushback</div><h2>Questions about your case?</h2><p class="sub">Answers are grounded in your case file, and Pushback searches the web again when it needs new facts.</p></div></header>
+        <div class="chat-card">
+          <div id="chatLog" class="chat-log"></div>
+          <div id="suggest" class="suggest"></div>
+          <form id="chatForm" class="chat-form">
+            <input id="chatIn" placeholder="Ask anything, e.g. “Can they evict me for disputing this?”" autocomplete="off">
+            <button type="button" class="tool mic" data-target="chatIn" title="Dictate">🎙️</button>
+            <button class="btn btn-primary" id="chatSend">Ask</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- Evidence -->
+      <section class="view" data-panel="evidence">
+        <header class="view-head">
+          <div><div class="eyebrow">Evidence</div><h2>Where every answer comes from</h2><p class="sub">Every source Exa found, with the passage that matters. Green means an official government or regulator source.</p></div>
+          <div class="seg" id="evFilter">
+            <button data-f="cited" class="on">Cited</button><button data-f="official">Official</button><button data-f="all">All</button>
+          </div>
+        </header>
+        <div id="srcList" class="sources"></div>
+      </section>
+
+      <!-- Research log -->
+      <section class="view" data-panel="research">
+        <header class="view-head"><div><div class="eyebrow">Research log</div><h2>Live investigation</h2><p class="sub">Every search, filter and reasoning step, as it happens.</p></div></header>
+        <ol id="feed" class="timeline"></ol>
+      </section>
+    </div>
+  </div>
+</main>
+
+<div id="tip" class="tip hidden"></div>
+<div id="toast" class="toast hidden"></div>
+<script src="/static/samples.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
