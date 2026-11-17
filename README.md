@@ -1,6 +1,9 @@
 # PUSHBACK
 ### Your letter says one thing. The law might say another.
 
+<img width="1850" height="986" alt="image" src="https://github.com/user-attachments/assets/e0700e39-7af1-4f91-91c6-b2aa538e42c1" />
+
+
 **Pushback is an AI advocate for unfair letters.** Paste (or photograph) a rent increase, a "no compensation" flight email, a surprise medical bill, a kept deposit or a withheld paycheck. Pushback checks **every claim in it** against the rules that apply **where you live, today**, shows the source behind every verdict, and hands you a ready-to-send reply. You approve it before anything is sent.
 
 🎬 **Demo video (3 min):** [`demo/pushback-demo.mp4`](demo/pushback-demo.mp4)
